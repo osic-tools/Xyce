@@ -33,7 +33,6 @@ configure_file(SetupPythonEnv.m.cmake SetupPythonEnv.m @ONLY )
 install( FILES N_CIR_XyceCInterface.h DESTINATION include OPTIONAL)
 install( FILES ${CMAKE_CURRENT_BINARY_DIR}/xyce_interface.py DESTINATION share OPTIONAL)
 install( FILES ${CMAKE_CURRENT_BINARY_DIR}/SetupPythonEnv.m DESTINATION share OPTIONAL)
-install( FILES XyceRest.py DESTINATION share OPTIONAL)
 install( DIRECTORY PythonExamples DESTINATION share OPTIONAL)
 install( DIRECTORY MatlabExamples DESTINATION share OPTIONAL)
 
