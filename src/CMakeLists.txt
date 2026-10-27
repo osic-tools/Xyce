@@ -67,10 +67,8 @@ add_subdirectory(MultiTimePDEPKG)
 # get_target_property(XYCE_INCLUDE_DIRECTORIES XyceLib INCLUDE_DIRECTORIES)
 # message(STATUS "Xyce Inc ${XYCE_INCLUDE_DIRECTORIES}")
 
-
 target_include_directories(XyceLib PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-     ${FLEX_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS})
-
+     ${FLEX_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS})
 
 #
 # Xyce-Dakota linkage
