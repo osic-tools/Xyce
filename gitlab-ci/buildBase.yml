@@ -4,6 +4,11 @@
     CXX: ""
     FC: ""
 
+    https_proxy: http://user:pass@proxy.sandia.gov:80/
+    http_proxy: http://user:pass@proxy.sandia.gov:80/
+    no_proxy: localhost,localnets,.sandia.gov,127.0.0.1,169.254.0.0/16,forge.sandia.gov
+    ftp_proxy: http://user:pass@proxy.sandia.gov:80/
+
     buildShared: "ON"
     buildStatic: "OFF"
     # Default value, can be set to "Debug" on a per-stage basis
@@ -11,9 +16,11 @@
 
     archFullName: ${Arch}-${Platform}-${OS}-${ToolsSpec}-${CompilerSuite}-${ParallelType}
     archInstallDir: ${BASE_INSTALL_DIR}/${archFullName}
-    ssInstallDir: ${archInstallDir}/SuiteSparse/${SuiteSparseVersion}
-    admsInstallDir: ${archInstallDir}/ADMS/${ADMSVersion}
-    trilinosInstallDir: ${archInstallDir}/trilinos/${TrilinosVersion}
+    ssInstallDir: ${archInstallDir}/SuiteSparse/${SUITESPARSE_VERSION}
+    admsInstallDir: ${archInstallDir}/ADMS/${ADMS_VERSION}
+    adcInstallDir: ${archInstallDir}/adct-cxx/${ADCT_VERSION}
+    adiakInstallDir: ${archInstallDir}/Adiak/${ADIAK_VERSION}
+    trilinosInstallDir: ${archInstallDir}/trilinos/${TRILINOS_VERSION}
     xyceInstallDir: ${archInstallDir}/xyce/${XYCE_INSTALL_STRING}
   before_script:
     # exit immediately when an error happens
