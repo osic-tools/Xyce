@@ -28,12 +28,18 @@ if(NOT DEFINED OSX_TOOLKIT_VERSION)
   set(OSX_TOOLKIT_VERSION "12.5")
 endif()
 
-if(NOT DEFINED CTEST_PROJECT_NAME OR "${CTEST_PROJECT_NAME}" STREQUAL "")
+if(NOT DEFINED CTEST_PROJECT_NAME)
+  # default if not defined via command line argument
   set(CTEST_PROJECT_NAME "Xyce")
 endif()
 
 set(CTEST_DROP_METHOD "https")
-set(CTEST_DROP_SITE "ramses-cdash.sandia.gov")
+
+if(NOT DEFINED CTEST_DROP_SITE)
+  # default if not defined via command line argument
+  set(CTEST_DROP_SITE "ramses-cdash.sandia.gov")
+endif()
+
 set(CTEST_DROP_LOCATION "/submit.php?project=${CTEST_PROJECT_NAME}")
 
 if(NOT DEFINED BUILD_DIR)
@@ -56,13 +62,6 @@ endif()
 # default is to build shared libraries
 if(NOT DEFINED BUILD_SHARED)
   set(BUILD_SHARED "ON")
-endif()
-
-# used for invocation of parallel make
-if(DEFINED ENV{JOBWEIGHT})
-  set(CTEST_BUILD_FLAGS "-j$ENV{JOBWEIGHT}")
-else()
-  set(CTEST_BUILD_FLAGS "-j8")
 endif()
 
 # this should probably be a variable in the environment or passed in,
@@ -112,6 +111,8 @@ endif()
 
 # create a list of variables to turn ON for trilinos cmake configuration
 set(TRI_CMAKE_VARS_ON "")
+list(APPEND TRI_CMAKE_VARS_ON "Trilinos_ENABLE_Fortran")
+list(APPEND TRI_CMAKE_VARS_ON "Trilinos_ENABLE_Tpetra")
 list(APPEND TRI_CMAKE_VARS_ON "Trilinos_ENABLE_Amesos")
 list(APPEND TRI_CMAKE_VARS_ON "Trilinos_ENABLE_Amesos2")
 list(APPEND TRI_CMAKE_VARS_ON "Trilinos_ENABLE_AztecOO")
@@ -187,12 +188,12 @@ if(DEFINED ENV{MKLROOT})
       # have to explicitly add this since cmake doesn't allow a list within a list. note
       # that xyce segfaulted for a lot of test with the 64-bit integer version of 
       # libmkl_intel_ilp64 so it was reverted to the 64-bit library using 32-bit integers.
-      list(APPEND TRI_CMAKE_VAR_EXPLICIT "-DMKL_LIBRARY_NAMES=libmkl_intel_lp64.a;libmkl_sequential.a;libmkl_core.a")
+      list(APPEND TRI_CMAKE_VAR_EXPLICIT "\"-DMKL_LIBRARY_NAMES=mkl_intel_lp64;mkl_sequential;mkl_core\"")
 
-      list(APPEND TRI_CMAKE_VARS_SET "BLAS_LIBRARY_NAMES=libmkl_intel_lp64.a")
+      list(APPEND TRI_CMAKE_VARS_SET "BLAS_LIBRARY_NAMES=mkl_intel_lp64")
       list(APPEND TRI_CMAKE_VARS_SET "BLAS_LIBRARY_DIRS=$ENV{MKLROOT}/lib")
 
-      list(APPEND TRI_CMAKE_VARS_SET "LAPACK_LIBRARY_NAMES=libmkl_intel_lp64.a")
+      list(APPEND TRI_CMAKE_VARS_SET "LAPACK_LIBRARY_NAMES=mkl_intel_lp64")
       list(APPEND TRI_CMAKE_VARS_SET "LAPACK_LIBRARY_DIRS=$ENV{MKLROOT}/lib")
     else()
       message(FATAL_ERROR "Unable to determine version of MKL since file $ENV{MKLROOT}/include/mkl_version.h wasn't found")
@@ -212,15 +213,15 @@ if(VERBOSITY GREATER 3)
 endif()
 
 # now construct command line options for cmake
-set(CMAKE_COMMAND_OPTS "-DTPL_ENABLE_MPI=${BUILD_WITH_MPI} -DBUILD_SHARED_LIBS=${BUILD_SHARED}")
+set(CMAKE_COMMAND_OPTS "\"-DTPL_ENABLE_MPI=${BUILD_WITH_MPI}\" \"-DBUILD_SHARED_LIBS=${BUILD_SHARED}\"")
 foreach(VARNAME ${TRI_CMAKE_VARS_ON})
-  set(CMAKE_COMMAND_OPTS "${CMAKE_COMMAND_OPTS} -D${VARNAME}=ON")
+  set(CMAKE_COMMAND_OPTS "${CMAKE_COMMAND_OPTS} \"-D${VARNAME}=ON\"")
 endforeach()
 foreach(VARNAME ${TRI_CMAKE_VARS_OFF})
-  set(CMAKE_COMMAND_OPTS "${CMAKE_COMMAND_OPTS} -D${VARNAME}=OFF")
+  set(CMAKE_COMMAND_OPTS "${CMAKE_COMMAND_OPTS} \"-D${VARNAME}=OFF\"")
 endforeach()
 foreach(VARNAME ${TRI_CMAKE_VARS_SET})
-  set(CMAKE_COMMAND_OPTS "${CMAKE_COMMAND_OPTS} -D${VARNAME}")
+  set(CMAKE_COMMAND_OPTS "${CMAKE_COMMAND_OPTS} \"-D${VARNAME}\"")
 endforeach()
 if(TRI_CMAKE_VAR_EXPLICIT)
   set(CMAKE_COMMAND_OPTS "${CMAKE_COMMAND_OPTS} ${TRI_CMAKE_VAR_EXPLICIT}")
@@ -228,11 +229,11 @@ endif()
 
 # add arguments passed in via ctest invocation
 foreach(VARARG ${CMAKE_ARGS_LIST})
-  set(CMAKE_COMMAND_OPTS "${CMAKE_COMMAND_OPTS} ${VARARG}")
+  set(CMAKE_COMMAND_OPTS "${CMAKE_COMMAND_OPTS} \"${VARARG}\"")
 endforeach()
 
 # add the toolkit version
-set(CMAKE_COMMAND_OPTS "${CMAKE_COMMAND_OPTS} -DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_TOOLKIT_VERSION}")
+set(CMAKE_COMMAND_OPTS "${CMAKE_COMMAND_OPTS} \"-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_TOOLKIT_VERSION}\"")
 
 if(VERBOSITY GREATER 2)
   message("[VERB]: CMAKE_COMMAND_OPTS = ${CMAKE_COMMAND_OPTS}")
@@ -240,7 +241,7 @@ endif()
 
 # cmake command to configure trilinos
 find_program(CTEST_CMAKE_COMMAND cmake REQUIRED)
-set(CTEST_CONFIGURE_COMMAND "${CTEST_CMAKE_COMMAND} ${CMAKE_COMMAND_OPTS} ${CTEST_SOURCE_DIRECTORY}")
+set(CTEST_CONFIGURE_COMMAND "\"${CTEST_CMAKE_COMMAND}\" ${CMAKE_COMMAND_OPTS} \"${CTEST_SOURCE_DIRECTORY}\"")
 if(VERBOSITY GREATER 1)
   message("[VERB]: CTEST_CONFIGURE_COMMAND = ${CTEST_CONFIGURE_COMMAND}")
 endif()
@@ -251,6 +252,18 @@ SET(CMAKE_MODULE_PATH
   "$ENV{WORKSPACE}/Trilinos/cmake/tribits/core/utils")
 
 ctest_start(Nightly GROUP ${GROUP})
-ctest_configure()
-ctest_build()
+ctest_configure(RETURN_VALUE ConfRetVal)
+ctest_submit(PARTS Configure)
+if(NOT ConfRetVal EQUAL 0)
+  message(FATAL_ERROR "Return value of configuration step: ${ConfRetVal}")
+endif()
+
+# skip build if configuration failed but continue so that results
+# are submitted
+ctest_build(RETURN_VALUE BuildRetVal)
+ctest_submit(PARTS Build)
+if(NOT BuildRetVal EQUAL 0)
+  message(FATAL_ERROR "Return value of build step: ${BuildRetVal}")
+endif()
+
 ctest_submit(RETRY_COUNT 10 RETRY_DELAY 30)

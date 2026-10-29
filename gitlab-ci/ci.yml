@@ -13,6 +13,87 @@ spec:
       description: "Base installation directory for deployment"
       type: string
       default: /projects/xyce_user/install
+    doTPLBuilds:
+      description: "Build relevant TPLs, including trilinos"
+      type: boolean
+      default: false
+    doXyceBuilds:
+      description: "Build Xyce"
+      type: boolean
+      default: true
+    doModuleGeneration:
+      description: "Generate TCL/LUA modules for relevant platforms"
+      type: boolean
+      default: true
+    doFinalize:
+      description: "Set permissions and finalize installations"
+      type: boolean
+      default: true
+    doTestModules:
+      description: "Test modules on relevant platforms"
+      type: boolean
+      default: true
+    doAnalysisBuildTest:
+      description: "Do various analysis builds, like GNU ASAN"
+      type: boolean
+      default: false
+    xyceInstallString:
+      description: "Identifying string used on the dashboard and installation directories"
+      type: string
+      default: "develop"
+    defaultBranch:
+      description: "Default branch for all repos"
+      type: string
+      default: "develop"
+    XyceBranch:
+      description: "The Xyce branch to use for the build"
+      type: string
+      default: ""
+    XyceNonFreeBranch:
+      description: "The Xyce_NonFree branch to use for the build"
+      type: string
+      default: ""
+    XyceSandiaModelsBranch:
+      description: "The Xyce_SandiaModels branch to use for the build"
+      type: string
+      default: ""
+    XyceFTRegressionBranch:
+      description: "The Xyce_FastrackRegression branch to use for the build"
+      type: string
+      default: ""
+    XyceRegressionBranch:
+      description: "The Xyce_Regression branch to use for the build"
+      type: string
+      default: ""
+    XyceSandiaRegressionBranch:
+      description: "The Xyce_SandiaRegression branch to use for the build"
+      type: string
+      default: ""
+    trilinosVersion:
+      description: "The trilinos version to build. Can be a SHA1, branch or tag."
+      type: string
+      default: "trilinos-release-16-2-1"
+    gitlabCITrace:
+      description: "gitlab CI tracing"
+      type: boolean
+      default: false
+    HPCRootFilesystem:
+      description: "The root file system to use for CI builds on HPC."
+      type: string
+      default: "rlfs01"
+      options:
+        - "rlfs01"
+        - "rnfs01"
+        - "tscratch"
+        - "pscratch"
+    CEERootFilesystem:
+      description: "The root file system to use for CI buids on CEE."
+      type: string
+      default: "scratch"
+      options:
+        - "scratch"
+        - "fgs"
+
 ---
 include:
   - gitlab-ci/buildBase.yml
@@ -36,59 +117,34 @@ stages:
   - analysisBuildTest
 
 variables:
-  DO_TPL_BUILDS: "OFF"
-  DO_XYCE_BUILDS: "ON"
-  DO_MODULE_GENERATION: "ON"
-  DO_FINALIZE: "ON"
-  DO_TEST_MODULES: "ON"
-
-  # generally you want the steps above OFF if this is ON and
-  # vice-versa 
-  DO_XYCE_ANALYSIS_BUILDTEST: "OFF"
-
   XYCE_NO_TRACKING: "TRUE"
 
-  BASE_INSTALL_DIR: $[[ inputs.baseInstallDir ]]
+  ADCT_VERSION: "v1.0.0"
+  ADIAK_VERSION: "v0.4.1"
+  SUITESPARSE_VERSION: "v7.8.3"
+  ADMS_VERSION: "release-2.3.7.XYCE"
 
+  BASE_INSTALL_DIR: $[[ inputs.baseInstallDir ]]
   BaseModuleInstallDir: ${BASE_INSTALL_DIR}/modules
 
   # XYCE_INSTALL_STRING appears in the installation subdirectory name and on
   # the dashboard. This allows you to do something like set it to
-  # "stable" and have XyceBranch point to something like "master"
-  XYCE_INSTALL_STRING: "develop"
-
-  # branch specifications for each repo used in actual git
-  # clone|fetch|checkout operations.
-  DEFAULT_BRANCH: "develop"
+  # "stable" and have xyceBranch point to something like "master"
+  XYCE_INSTALL_STRING: "$[[ inputs.xyceInstallString ]]"
 
   # this list is used to dynamically create the names of the variables
   # that will store the actual branch names by appending "Branch" to
-  # them
+  # them. should be one for each Xyce repo.
   BranchList: "Xyce XyceFTRegression XyceRegression XyceNonFree XyceSandiaModels XyceSandiaRegression"
-
-  # if you need a branch, or group of branches, specify the values
-  # here. Note that if you leave any or all of these blank then the
-  # value of "DEFAULT_BRANCH" will be used. DEFAULT_BRANCH should never
-  # be blank.
-  XyceBranch: ""
-  XyceFTRegressionBranch: ""
-  XyceRegressionBranch: ""
-  XyceNonFreeBranch: ""
-  XyceSandiaModelsBranch: ""
-  XyceSandiaRegressionBranch: ""
 
   # xyce repo. for debugging in your own fork change this. 
   mainXyceRepo: "Xyce/code/uur-proprietary/Xyce.git"
   ##mainXyceRepo: "gary-hennigan/xycefork/Xyce.git"
 
-  # these correspond directly to git entities, either tags or
-  # branches, to be built
-  TrilinosVersion: trilinos-release-16-2-1
-  SuiteSparseVersion: v7.8.3
-  ADMSVersion: release-2.3.7.XYCE
-
   # This helps a lot when debugging pipelines
-  CI_DEBUG_TRACE: "true"
+  CI_DEBUG_TRACE: $[[ inputs.gitlabCITrace ]]
+
+  HPC_ROOT_FILESYSTEM: "rlfs01"
 
   CommonModules: "
     aue/git
@@ -102,6 +158,10 @@ variables:
   # flexibility when specifying the versions. this is a built-in
   # variable and shouldn't be modified
   GIT_DEPTH: 0
+
+  # what filesystem to use on HPC
+  HPC_ROOT_FILESYSTEM: "$[[ inputs.HPCRootFilesystem ]]"
+  CEE_ROOT_FILESYSTEM: "$[[ inputs.CEERootFilesystem ]]"
 
 default:
   id_tokens:
@@ -126,15 +186,31 @@ trigger_pipeline:
       curl --request POST \
         --form token=${XYCE_JENKINS_PIPELINE_TRIGGER_TOKEN} \
         --form ref=${CI_COMMIT_BRANCH} \
-        --form "variables[DO_TPL_BUILDS]=${DO_TPL_BUILDS}" \
-        --form "variables[DO_XYCE_BUILDS]=${DO_XYCE_BUILDS}" \
-        --form "variables[DO_MODULE_GENERATION]=${DO_MODULE_GENERATION}" \
-        --form "variables[DO_FINALIZE]=${DO_FINALIZE}" \
-        --form "variables[DO_TEST_MODULES]=${DO_TEST_MODULES}" \
-        --form "variables[DO_XYCE_ANALYSIS_BUILDTEST]=${DO_XYCE_ANALYSIS_BUILDTEST}" \
-        --form "variables[BASE_INSTALL_DIR]=${BASE_INSTALL_DIR}" \
-        --form "variables[DEFAULT_BRANCH]=${DEFAULT_BRANCH}" \
-        --form "variables[XYCE_INSTALL_STRING]=${XYCE_INSTALL_STRING}" \
+        \
+        --form "variables[DO_TPL_BUILDS]=$[[ inputs.doTPLBuilds ]]" \
+        --form "variables[DO_XYCE_BUILDS]=$[[ inputs.doXyceBuilds ]]" \
+        --form "variables[DO_MODULE_GENERATION]=$[[ inputs.doModuleGeneration ]]" \
+        --form "variables[DO_FINALIZE]=$[[ inputs.doFinalize ]]" \
+        --form "variables[DO_TEST_MODULES]=$[[ inputs.doTestModules ]]" \
+        --form "variables[DO_XYCE_ANALYSIS_BUILDTEST]=$[[ inputs.doAnalysisBuildTest ]]" \
+        \
+        --form "variables[TRILINOS_VERSION]=$[[ inputs.trilinosVersion ]]" \
+        \
+        --form "variables[BASE_INSTALL_DIR]=$[[ inputs.baseInstallDir ]]" \
+        --form "variables[DEFAULT_BRANCH]=$[[ inputs.defaultBranch ]]" \
+        --form "variables[XYCE_INSTALL_STRING]=$[[ inputs.xyceInstallString ]]" \
+        \
+        --form "variables[XyceBranch]=$[[ inputs.XyceBranch ]]" \
+        --form "variables[XyceFTRegressionBranch]=$[[ inputs.XyceFTRegressionBranch ]]" \
+        --form "variables[XyceRegressionBranch]=$[[ inputs.XyceRegressionBranch ]]" \
+        --form "variables[XyceNonFreeBranch]=$[[ inputs.XyceNonFreeBranch ]]" \
+        --form "variables[XyceSandiaModelsBranch]=$[[ inputs.XyceSandiaModelsBranch ]]" \
+        --form "variables[XyceSandiaRegressionBranch]=$[[ inputs.XyceSandiaRegressionBranch ]]" \
+        \
+        --form "variables[HPC_ROOT_FILESYSTEM]=$[[ inputs.HPCRootFilesystem ]]" \
+        --form "variables[CEE_ROOT_FILESYSTEM]=$[[ inputs.CEERootFilesystem ]]" \
+        --form "variables[CI_DEBUG_TRACE]=$[[ inputs.gitlabCITrace ]]" \
+        \
         "https://cee-gitlab.sandia.gov/api/v4/projects/${CI_PROJECT_ID}/trigger/pipeline"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'

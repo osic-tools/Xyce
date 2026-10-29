@@ -6,87 +6,67 @@ include:
   dependencies: []
   variables:
     GIT_STRATEGY: none
-  before_script:
-    - |
-      case $(hostname) in
-        flight*)
-          SBATCH_EXTRA_ARGS="--reservation=condo-ascic-ci ${CTS_LICENSE_ARG}"
-          ;;
-        *)
-          SBATCH_EXTRA_ARGS="${CTS_LICENSE_ARG}"
-          ;;
-      esac
   rules:
-    - if: '$DO_TEST_MODULES == "ON" && $CI_PIPELINE_SOURCE == "trigger"'
+    - if: '$DO_TEST_MODULES == "true" && $CI_PIPELINE_SOURCE == "trigger"'
 
-.test_modules_cts:
+.test_modules_serial:
   extends:
     - .test_modules
   script:
-    - module use ${BaseModuleInstallDir}/${Platform}
-    - module purge
-    - srun ${SBATCH_EXTRA_ARGS} -N1 --time=00:05:00 --account=FY200136 -p short,batch /bin/bash -c "set -e; module add xyce/${XYCE_INSTALL_STRING}/${CompilerSuite}/parallel; which Xyce; mpirun -np 1 Xyce -capabilities"
+    - |
+      module use ${BaseModuleInstallDir}/${Platform}
+      module purge
+      module load xyce/${XYCE_INSTALL_STRING}/${CompilerSuite}/serial
+      which Xyce
+      Xyce -capabilities
+
+.test_modules_mpi:
+  extends:
+    - .test_modules
+  script:
+    - |
+      module use ${BaseModuleInstallDir}/${Platform}
+      module purge
+      module load xyce/${XYCE_INSTALL_STRING}/${CompilerSuite}/parallel
+      which Xyce
+      mpirun -np 1 Xyce -capabilities
 
 GNU_serial.testModule:
   extends:
-    - .test_modules
+    - .test_modules_serial
     - .gnu_serial_vars
-  script:
-    - module use ${BaseModuleInstallDir}/${Platform}
-    - module purge
-    - module load xyce/${XYCE_INSTALL_STRING}/${CompilerSuite}/serial
-    - which Xyce
-    - Xyce -capabilities
 
 GNU_OpenMPI.testModule:
   extends:
-    - .test_modules
+    - .test_modules_mpi
     - .gnu_openmpi_vars
-  script:
-    - module use ${BaseModuleInstallDir}/${Platform}
-    - module purge
-    - module load xyce/${XYCE_INSTALL_STRING}/${CompilerSuite}/parallel
-    - which Xyce
-    - mpirun -np 1 Xyce -capabilities
 
 Intel_serial.testModule:
   extends:
-    - .test_modules
+    - .test_modules_serial
     - .intel_serial_vars
-  script:
-    - module use ${BaseModuleInstallDir}/${Platform}
-    - module purge
-    - module load xyce/${XYCE_INSTALL_STRING}/${CompilerSuite}/serial
-    - which Xyce
-    - Xyce -capabilities
 
-GNU_OpenMPI.testModule:
+Intel_OpenMPI.testModule:
   extends:
-    - .test_modules
+    - .test_modules_mpi
     - .intel_openmpi_vars
-  script:
-    - module use ${BaseModuleInstallDir}/${Platform}
-    - module purge
-    - module load xyce/${XYCE_INSTALL_STRING}/${CompilerSuite}/parallel
-    - which Xyce
-    - mpirun -np 1 Xyce -capabilities
 
 GNU_serial.cts.testModule:
   extends:
-    - .test_modules_cts
+    - .test_modules_serial
     - .gnu_serial_cts_vars
 
 GNU_OpenMPI.cts.testModule:
   extends:
-    - .test_modules_cts
+    - .test_modules_mpi
     - .gnu_openmpi_cts_vars
     
 Intel_serial.cts.testModule:
   extends:
-    - .test_modules_cts
+    - .test_modules_serial
     - .intel_serial_cts_vars
 
 Intel_OpenMPI.cts.testModule:
   extends:
-    - .test_modules_cts
+    - .test_modules_mpi
     - .intel_openmpi_cts_vars

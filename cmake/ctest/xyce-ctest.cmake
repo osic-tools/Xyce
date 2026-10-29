@@ -277,6 +277,14 @@ if(NOT DEFINED CDASHVER)
   set(CDASHVER 0.0)
 endif()
 
+if(NOT DEFINED SKIP_CTEST_CONFIGURE)
+  set(SKIP_CTEST_CONFIGURE FALSE)
+endif()
+
+if(NOT DEFINED SKIP_CTEST_BUILD)
+  set(SKIP_CTEST_BUILD FALSE)
+endif()
+
 if(TDEV_BUILD)
   set(xyceSitePostFix "Xyce TrilinosDev")
 else()
@@ -324,8 +332,18 @@ if (USE_GITLAB_CI_TESTING)
   set(CTEST_SOURCE_DIRECTORY "$ENV{CI_PROJECT_DIR}/repos/Xyce")
   set(CTEST_BINARY_DIRECTORY "$ENV{CI_PROJECT_DIR}/repos/build")
 elseif(USE_CTEST_TESTING)
-  set(CTEST_SOURCE_DIRECTORY "$ENV{WORKSPACE}/Xyce")
-  set(CTEST_BINARY_DIRECTORY "$ENV{WORKSPACE}/build")
+
+  if(NOT DEFINED Xyce_SOURCE_DIRECTORY)
+    set(CTEST_SOURCE_DIRECTORY "$ENV{WORKSPACE}/Xyce")
+  else()
+    set(CTEST_SOURCE_DIRECTORY "${Xyce_SOURCE_DIRECTORY}")
+  endif()
+
+  if(NOT DEFINED Xyce_BINARY_DIRECTORY)
+    set(CTEST_BINARY_DIRECTORY "$ENV{WORKSPACE}/build")
+  else()
+    set(CTEST_BINARY_DIRECTORY "${Xyce_BINARY_DIRECTORY}")
+  endif()
 else()
   set(CTEST_SOURCE_DIRECTORY "$ENV{WORKSPACE}/source/Xyce")
   set(CTEST_BINARY_DIRECTORY "$ENV{WORKSPACE}/build")
@@ -413,6 +431,21 @@ if(NOT DEFINED NUM_PROCS)
   endif()
 endif()
 
+if(NOT DEFINED NUM_PROCS_BUILD)
+  if(NOT DEFINED ENV{NUM_PROCS_BUILD})
+    set(NUM_PROCS_BUILD ${NUM_PROCS})
+  else()
+    set(NUM_PROCS_BUILD $ENV{NUM_PROCS_BUILD})
+  endif()
+endif()
+if(NOT DEFINED NUM_PROCS_TEST)
+  if(NOT DEFINED ENV{NUM_PROCS_TEST})
+    set(NUM_PROCS_TEST ${NUM_PROCS})
+  else()
+    set(NUM_PROCS_TEST $ENV{NUM_PROCS_TEST})
+  endif()
+endif()
+
 # note that "Weekly" is just a Nightly category with a different group
 # name
 if(NOT DEFINED ENV{TESTSET})
@@ -426,22 +459,16 @@ if(USE_GITLAB_CI_TESTING)
   else()
     set(TESTGROUP "${CDASH_GROUP}")
   endif()
-  if(NOT XYCE_TEST_LABEL_FILTER)
-    set(XYCE_TEST_LABEL_FILTER "nightly")
-  endif()
+  set(XYCE_TEST_LABEL_FILTER "nightly")
 else()
   if("$ENV{TESTSET}" STREQUAL "Nightly")
     set(MODEL "Nightly")
     set(TESTGROUP "Nightly")
-    if(NOT XYCE_TEST_LABEL_FILTER)
-      set(XYCE_TEST_LABEL_FILTER "nightly")
-    endif()
+    set(XYCE_TEST_LABEL_FILTER "nightly")
   elseif("$ENV{TESTSET}" STREQUAL "Weekly")
     set(MODEL "Nightly")
     set(TESTGROUP "Latest_Weekly")
-    if(NOT XYCE_TEST_LABEL_FILTER)
-      set(XYCE_TEST_LABEL_FILTER "weekly")
-    endif()
+    set(XYCE_TEST_LABEL_FILTER "weekly")
   else()
     set(MODEL "Experimental")
     set(TESTGROUP "Experimental")
@@ -461,7 +488,11 @@ if("$ENV{branch}" MATCHES "^release.*")
 endif()
 
 set(CTEST_DROP_METHOD "https")
-set(CTEST_DROP_SITE "ramses-cdash.sandia.gov")
+
+if(NOT DEFINED CTEST_DROP_SITE)
+  set(CTEST_DROP_SITE "ramses-cdash.sandia.gov")
+endif()
+
 set(CTEST_DROP_LOCATION "/submit.php?project=${CTEST_PROJECT_NAME}")
 
 if(VERBOSITY GREATER 4)
@@ -471,7 +502,7 @@ endif()
 # default to a "Debug" build if not specified
 set(XYCE_CMAKE_CONF_ARG "")
 foreach(cmakeopt IN LISTS CMAKE_ARGS_LIST)
-  set(XYCE_CMAKE_CONF_ARG "${XYCE_CMAKE_CONF_ARG} ${cmakeopt}")
+  set(XYCE_CMAKE_CONF_ARG "${XYCE_CMAKE_CONF_ARG} \"${cmakeopt}\"")
 endforeach()
 if(VERBOSITY GREATER 4)
   message("[VERB5]: XYCE_CMAKE_CONF_ARG = ${XYCE_CMAKE_CONF_ARG}")
@@ -490,7 +521,7 @@ if(NINJA_COMMAND MATCHES "NINJA_COMMAND-NOTFOUND" )
   set(CTEST_CONFIGURE_COMMAND "${CTEST_CMAKE_COMMAND} --log-level=Debug \"-GUnix Makefiles\"")
 else()
   set(CTEST_CMAKE_GENERATOR "Ninja Multi-Config")
-  set(CTEST_CONFIGURE_COMMAND "${CTEST_CMAKE_COMMAND} --log-level=Debug \"-GNinja Multi-Config\"")
+  set(CTEST_CONFIGURE_COMMAND "\"${CTEST_CMAKE_COMMAND}\" --log-level=Debug \"-GNinja Multi-Config\"")
   if(NOT CTEST_CONFIGURATION_TYPE)
     set(CTEST_CONFIGURATION_TYPE "Release")
   endif()
@@ -543,16 +574,43 @@ if(VERBOSITY GREATER 1)
   message("[VERB1]: CTEST_CONFIGURE_COMMAND = ${CTEST_CONFIGURE_COMMAND}")
 endif()
 
+# windows-specific settings
+if(WIN32)
+  find_program(POWERSHELL_EXE NAMES powershell)
+  if(POWERSHELL_EXE)
+    set(CTEST_CMAKE_COMMAND "${POWERSHELL_EXE}")
+    set(CTEST_COMMAND "${POWERSHELL_EXE} -Command")
+  endif()
+endif()
+
 # begin ctest procedures. MODEL should be one of Nightly, Weekly,
 # Continuous or Experimental. this can use custom categories via the
 # GROUP option to ctest_start() if desired
 ctest_start(${MODEL} GROUP ${TESTGROUP})
 
 # this runs cmake on xyce
-ctest_configure(RETURN_VALUE confReturnVal)
+if(NOT SKIP_CTEST_CONFIGURE)
+  ctest_configure(RETURN_VALUE confReturnVal)
+endif()
+ctest_submit(PARTS Configure)
+if(NOT confReturnVal EQUAL 0)
+  message(FATAL_ERROR "Configuration return value: ${confReturnVal}")
+endif()
 
 # invoke the build tool, usually ninja, or possibly "make"
-ctest_build(RETURN_VALUE buildReturnVal)
+if(NOT SKIP_CTEST_BUILD)
+  if(VERBOSITY GREATER 1)
+    message("[VERB1]: build PARALLEL_LEVEL being set to ${NUM_PROCS_BUILD} and label ${XYCE_TEST_LABEL_FILTER}")
+  endif()
+  ctest_build(
+    RETURN_VALUE buildReturnVal
+    PARALLEL_LEVEL ${NUM_PROCS_BUILD}
+  )
+endif()
+ctest_submit(PARTS Build)
+if(NOT buildReturnVal EQUAL 0)
+  message(FATAL_ERROR "Build returned value: ${buildReturnVal}")
+endif()
 
 # if the build succeeds, as indicated by a zero return value, proceed,
 # otherwise skip to submission
@@ -560,11 +618,11 @@ set(testReturnVal 0) # initialize
 if(buildReturnVal EQUAL 0)
   if(USE_CTEST_TESTING)
     if(VERBOSITY GREATER 1)
-      message("[VERB1]: PARALLEL_LEVEL being set to ${NUM_PROCS} and label ${XYCE_TEST_LABEL_FILTER}")
+      message("[VERB1]: tests PARALLEL_LEVEL being set to ${NUM_PROCS_TEST} and label ${XYCE_TEST_LABEL_FILTER}")
     endif()
     set( ENV{XYCE_NO_TRACKING} "notrack")
     ctest_test(RETURN_VALUE testReturnVal
-      PARALLEL_LEVEL ${NUM_PROCS}
+      PARALLEL_LEVEL ${NUM_PROCS_TEST}
       INCLUDE_LABEL "${XYCE_TEST_LABEL_FILTER}"
       EXCLUDE_LABEL "${EXCLUDE_TESTS_WITH_LABEL}")
     if(VERBOSITY GREATER 1)
