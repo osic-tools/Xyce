@@ -10,7 +10,6 @@
     ftp_proxy: http://user:pass@proxy.sandia.gov:80/
 
     buildShared: "ON"
-    buildStatic: "OFF"
     # Default value, can be set to "Debug" on a per-stage basis
     cmakeBuildType: "Release"
 
