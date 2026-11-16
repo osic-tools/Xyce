@@ -11,60 +11,80 @@
     - cleanInstallDir "${admsInstallDir}/${optStr}"
     - cleanInstallDir "${ssInstallDir}/${optStr}/${libTypeStr}"
     - cleanInstallDir "${trilinosInstallDir}/${optStr}/${libTypeStr}"
+    - cleanInstallDir "${adiakInstallDir}/${optStr}/${libTypeStr}"
+    - cleanInstallDir "${adcInstallDir}/${optStr}/${libTypeStr}"
   rules:
     # always do cleanup if TPLs are building
-    - if: '$DO_TPL_BUILDS == "ON" && $CI_PIPELINE_SOURCE == "trigger"'
+    - if: '$DO_TPL_BUILDS == "true" && $CI_PIPELINE_SOURCE == "trigger"'
 
 GNU_serial.cleanup:
   extends:
     - .clean_tpl_installs
     - .gnu_serial_vars
-
-GNU_serial.Debug.cleanup:
-  variables:
-    cmakeBuildType: "Debug"
-  extends:
-    - .clean_tpl_installs
-    - .gnu_serial_vars
+  parallel:
+    matrix:
+      - buildShared: ["ON", "OFF"]
+        cmakeBuildType: ["Debug", "Release"]
 
 GNU_OpenMPI.cleanup:
   extends:
     - .clean_tpl_installs
     - .gnu_openmpi_vars
-
-GNU_OpenMPI.Debug.cleanup:
-  variables:
-    cmakeBuildType: "Debug"
-  extends:
-    - .clean_tpl_installs
-    - .gnu_openmpi_vars
+  parallel:
+    matrix:
+      - buildShared: ["ON", "OFF"]
+        cmakeBuildType: ["Debug", "Release"]
 
 Intel_serial.cleanup:
   extends:
     - .clean_tpl_installs
     - .intel_serial_vars
+  parallel:
+    matrix:
+      - buildShared: ["ON", "OFF"]
+        cmakeBuildType: ["Release"]
 
 Intel_OpenMPI.cleanup:
   extends:
     - .clean_tpl_installs
     - .intel_openmpi_vars
+  parallel:
+    matrix:
+      - buildShared: ["ON", "OFF"]
+        cmakeBuildType: ["Release"]
 
 GNU_OpenMPI.cts.cleanup:
   extends:
     - .clean_tpl_installs
     - .gnu_openmpi_cts_vars
+  parallel:
+    matrix:
+      - buildShared: ["ON", "OFF"]
+        cmakeBuildType: ["Release"]
 
 GNU_serial.cts.cleanup:
   extends:
     - .clean_tpl_installs
     - .gnu_serial_cts_vars
+  parallel:
+    matrix:
+      - buildShared: ["ON"]
+        cmakeBuildType: ["Release"]
 
 Intel_OpenMPI.cts.cleanup:
   extends:
     - .clean_tpl_installs
     - .intel_openmpi_cts_vars
+  parallel:
+    matrix:
+      - buildShared: ["ON"]
+        cmakeBuildType: ["Release"]
 
 Intel_serial.cts.cleanup:
   extends:
     - .clean_tpl_installs
     - .intel_serial_cts_vars
+  parallel:
+    matrix:
+      - buildShared: ["ON"]
+        cmakeBuildType: ["Release"]

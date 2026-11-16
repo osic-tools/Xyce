@@ -46,8 +46,6 @@
 
 #include <N_UTL_FormatMemorySize.h>
 
-#define KILO_ONLY
-
 namespace Xyce {
 
 //-----------------------------------------------------------------------------
@@ -73,32 +71,8 @@ formatMemorySize(
     size = -size;
   }
 
-#ifdef KILO_ONLY
   // output size in kilo bytes
   os << static_cast<unsigned long>(size/kb) << " KB";
-
-#else
-  if (size < kb) {
-    // output size in bytes
-    result += boost::lexical_cast<std::string>(static_cast<unsigned long>(size));
-    result += " B";
-  }
-  else if (size < mb) {
-    // output size in kilo bytes
-    result += boost::lexical_cast<std::string>(static_cast<unsigned long>(size / kb));
-    result += " KB";
-  }
-  else if (size < gb) {
-    // output size in mega bytes
-    result += boost::lexical_cast<std::string>(static_cast<unsigned long>(size / mb));
-    result += " MB";
-  }
-  else {
-    // everything else output in giga bytes
-    result += boost::lexical_cast<std::string>(static_cast<unsigned long>(size / gb));
-    result += " GB";
-  }
-#endif
 
   return os.str();
 }
@@ -114,32 +88,8 @@ formatMemorySize(
   // static const MemorySize mb = kb * kb;
   // static const MemorySize gb = kb * kb * kb;
 
-#ifdef KILO_ONLY
   // output size in kilo bytes
   os << size/kb << " KB";
-
-#else
-  if (size < kb) {
-    // output size in bytes
-    result = boost::lexical_cast<std::string>(size);
-    result += " B";
-  }
-  else if (size < mb) {
-    // output size in kilo bytes
-    result = boost::lexical_cast<std::string>(size / kb);
-    result += " KB";
-  }
-  else if (size < gb) {
-    // output size in mega bytes
-    result = boost::lexical_cast<std::string>(size / mb);
-    result += " MB";
-  }
-  else {
-    // everything else output in giga bytes
-    result = boost::lexical_cast<std::string>(size / gb);
-    result += " GB";
-  }
-#endif
 
   return os.str();
 }

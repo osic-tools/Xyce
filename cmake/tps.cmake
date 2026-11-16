@@ -81,7 +81,7 @@ find_package(Trilinos CONFIG
   AztecOO Belos TrilinosCouplings
   OPTIONAL_COMPONENTS Isorropia Zoltan ShyLU ShyLU_DDCore
   Amesos2 Stokhos ROL MKL)
-message(STATUS "Looking for Trilinos - found")
+message(STATUS "Looking for Trilinos - found ${Trilinos_VERSION}: ${Trilinos_DIR}")
 
 if(Trilinos_VERSION VERSION_LESS "13.5")
   message(FATAL_ERROR

@@ -19,31 +19,32 @@ include:
     ExcludeTestLabel: ""
     JUnitResultsFile: "junit-test-results.xml"
     cmakeArgsList: |
-      --log-level=STATUS;\
-      -DXyce_REGRESSION=ON;\
-      -DXyce_USE_FFT=ON;\
-      -DXyce_PLUGIN_SUPPORT=BLD_SHARED_TEMPLATE;\
-      -DBUILD_SHARED_LIBS=BLD_SHARED_TEMPLATE;\
-      -DCMAKE_BUILD_TYPE=${cmakeBuildType};\
-      -DBUILD_TESTING=ON;\
-      -DXyce_GTEST_UNIT_TESTS=${GoogleUnitTesting};\
-      -DXyce_PARALLEL_MPI=${BuildWithMPI};\
-      -DXyce_RAD_MODELS=ON;\
-      -DXyce_USE_CURL=ON;\
-      -DXyce_TRACKING_URL=http://morannon.sandia.gov/Xyce_Stats/cgi-bin/collectstats.pl;\
-      -DXyce_AS_SPECIAL_CHARON_TPL=OFF;\
+      --log-level=DEBUG;
+      -DXyce_REGRESSION=ON;
+      -DXyce_USE_FFT=ON;
+      -DXyce_PLUGIN_SUPPORT=BLD_SHARED_TEMPLATE;
+      -DBUILD_SHARED_LIBS=BLD_SHARED_TEMPLATE;
+      -DCMAKE_BUILD_TYPE=${cmakeBuildType};
+      -DBUILD_TESTING=ON;
+      -DXyce_GTEST_UNIT_TESTS=${GoogleUnitTesting};
+      -DXyce_PARALLEL_MPI=${BuildWithMPI};
+      -DXyce_RAD_MODELS=ON;
+      -DXyce_USE_CURL=ON;
+      -DXyce_TRACKING_URL=http://morannon.sandia.gov/Xyce_Stats/cgi-bin/collectstats.pl;
+      -DXyce_AS_SPECIAL_CHARON_TPL=OFF;
       -DCMAKE_INSTALL_PREFIX=${xyceInstallDir}
-      
   script:
     - set -euo pipefail
+    - hostname
     # activate python virtual for xyce build and test
     - source /projects/xyce_user/pythonVirtEnv/Xyce/bin/activate
     - cloneAllXyceRepos
     # so admsXml will be found
     - export PATH="${PATH}:${admsInstallDir}/${optStr}/bin"
-    # remove backslashes and newline characters from list for proper
+    # remove  and newline characters from list for proper
     # parsing by ctest script
-    - rawCmakeArgsList=$(echo ${cmakeArgsList} | sed "s/BLD_SHARED_TEMPLATE/${buildShared}/g" | tr -d '\\\n')
+    - rawCmakeArgsList=$(echo ${cmakeArgsList} | sed "s/BLD_SHARED_TEMPLATE/${buildShared}/g" | tr -d '\n' | sed s/'; '/';'/g)
+    - printf "##%s##\n" "${rawCmakeArgsList}"
     # this appears on the dashboard under "Build Name"
     - export MYBUILDNAME=Xyce/${XYCE_INSTALL_STRING}/${optStr}/${libTypeStr}-${archFullName}
     - echo "MYBUILDNAME=${MYBUILDNAME}"
@@ -80,12 +81,16 @@ include:
       junit: ${JUnitResultsFile}
     when: always
   rules:
-    - if: '$DO_XYCE_BUILDS == "ON" && $CI_PIPELINE_SOURCE == "trigger"'
+    - if: '$DO_XYCE_BUILDS == "true" && $CI_PIPELINE_SOURCE == "trigger"'
   
 # Begin concrete gitlab CI stages
 GNU_serial.buildTestInstallXyce:
   needs:
-    - job: GNU_serial.dyn.buildTPLs
+    - job: GNU_serial.buildTPLs
+      parallel:
+        matrix:
+          - buildShared: "ON"
+            cmakeBuildType: "Release"
       artifacts: false
       optional: true
   extends:
@@ -94,7 +99,11 @@ GNU_serial.buildTestInstallXyce:
 
 GNU_OpenMPI.buildTestInstallXyce:
   needs:
-    - job: GNU_OpenMPI.dyn.buildTPLs
+    - job: GNU_OpenMPI.buildTPLs
+      parallel:
+        matrix:
+          - buildShared: "ON"
+            cmakeBuildType: "Release"
       artifacts: false
       optional: true
   extends:
@@ -103,21 +112,13 @@ GNU_OpenMPI.buildTestInstallXyce:
   variables:
      ExcludeTestLabel: "timesensitive"
 
-GNU_OpenMPI.Debug.buildTestInstallXyce:
-  needs:
-    - job: GNU_OpenMPI.dyn.Debug.buildTPLs
-      artifacts: false
-      optional: true
-  extends:
-     - .build_test_install_xyce
-     - .gnu_openmpi_vars
-  variables:
-     cmakeBuildType: "Debug"
-     ExcludeTestLabel: "timesensitive"
-
 Intel_serial.buildTestInstallXyce:
   needs:
-    - job: Intel_serial.dyn.buildTPLs
+    - job: Intel_serial.buildTPLs
+      parallel:
+        matrix:
+          - buildShared: "ON"
+            cmakeBuildType: "Release"
       artifacts: false
       optional: true
   extends:
@@ -126,7 +127,11 @@ Intel_serial.buildTestInstallXyce:
 
 Intel_OpenMPI.buildTestInstallXyce:
   needs:
-    - job: Intel_OpenMPI.dyn.buildTPLs
+    - job: Intel_OpenMPI.buildTPLs
+      parallel:
+        matrix:
+          - buildShared: "ON"
+            cmakeBuildType: "Release"
       artifacts: false
       optional: true
   extends:
@@ -135,58 +140,15 @@ Intel_OpenMPI.buildTestInstallXyce:
   variables:
      ExcludeTestLabel: "timesensitive"
 
-.build_test_install_xyce_cts:
-  extends: .build_test_install_xyce
-  script:
-    - set -euo pipefail
-    - cloneAllXyceRepos
-    # this appears on the dashboard under "Build Name"
-    - export MYBUILDNAME=Xyce/${XYCE_INSTALL_STRING}/${optStr}/${libTypeStr}-${archFullName}
-    - echo "MYBUILDNAME=${MYBUILDNAME}"
-    # only doing links against dynamic libraries for now
-    - export Trilinos_DIR=${trilinosInstallDir}/${optStr}/${libTypeStr}
-    - echo "Trilinos_DIR=${Trilinos_DIR}"
-    # so admsXml will be found
-    - export PATH="${PATH}:${admsInstallDir}/${optStr}/bin"
-    - rawCmakeArgsList=$(echo ${cmakeArgsList} | sed "s/BLD_SHARED_TEMPLATE/${buildShared}/g" | tr -d '\\\\\n')
-    - |
-      case $(hostname) in
-        flight*)
-          SBATCH_EXTRA_ARGS="--reservation=condo-ascic-ci ${CTS_LICENSE_ARG}"
-          ;;
-        *)
-          SBATCH_EXTRA_ARGS="${CTS_LICENSE_ARG}"
-          ;;
-      esac
-    - echo "Trilinos_DIR=${Trilinos_DIR}"
-    - rm -f slurm*.out
-    - |
-      sbatch ${SBATCH_EXTRA_ARGS} \
-        --wait \
-        --time=3:59:00 \
-        --job-name=xyce_ci \
-        --account=FY200136 \
-        --partition=short,batch \
-        ${CI_PROJECT_DIR}/gitlab-ci/cts-sbatch-ctest.sh \
-          "${rawCmakeArgsList}" \
-          "${xyceInstallDir}" \
-          "${CI_PROJECT_DIR}" \
-          "${ExcludeTestLabel}" \
-          "${CI_PROJECT_DIR}/${JUnitResultsFile}"
-    # clean out the installation directory
-    - cleanInstallDir "${xyceInstallDir}"
-    - cmake --install ${CI_PROJECT_DIR}/repos/build --config ${cmakeBuildType}
-
 GNU_OpenMPI.cts.buildTestInstallXyce:
   needs:
     - job: GNU_OpenMPI.cts.buildTPLs
       artifacts: false
       optional: true
   extends:
-    - .build_test_install_xyce_cts
+    - .build_test_install_xyce
     - .gnu_openmpi_cts_vars
   variables:
-    CUSTOM_CI_BUILDS_DIR: "/gpfs/${GITLAB_USER_LOGIN}/jacamar-ci"
     ExcludeTestLabel: "timesensitive"
 
 GNU_serial.cts.buildTestInstallXyce:
@@ -195,10 +157,8 @@ GNU_serial.cts.buildTestInstallXyce:
       artifacts: false
       optional: true
   extends:
-    - .build_test_install_xyce_cts
+    - .build_test_install_xyce
     - .gnu_serial_cts_vars
-  variables:
-    CUSTOM_CI_BUILDS_DIR: "/gpfs/${GITLAB_USER_LOGIN}/jacamar-ci"
 
 Intel_OpenMPI.cts.buildTestInstallXyce:
   needs:
@@ -206,11 +166,10 @@ Intel_OpenMPI.cts.buildTestInstallXyce:
       artifacts: false
       optional: true
   extends:
-    - .build_test_install_xyce_cts
+    - .build_test_install_xyce
     - .intel_openmpi_cts_vars
   variables:
     ExcludeTestLabel: "timesensitive"
-    CUSTOM_CI_BUILDS_DIR: "/gpfs/${GITLAB_USER_LOGIN}/jacamar-ci"
 
 Intel_serial.cts.buildTestInstallXyce:
   needs:
@@ -218,7 +177,5 @@ Intel_serial.cts.buildTestInstallXyce:
       artifacts: false
       optional: true
   extends:
-    - .build_test_install_xyce_cts
+    - .build_test_install_xyce
     - .intel_serial_cts_vars
-  variables:
-    CUSTOM_CI_BUILDS_DIR: "/gpfs/${GITLAB_USER_LOGIN}/jacamar-ci"

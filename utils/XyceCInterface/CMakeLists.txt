@@ -19,7 +19,7 @@ if(GTest_FOUND AND NOT Xyce_PARALLEL_MPI)
           DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
      # Wrap the GTest tests with CTest
-     gtest_discover_tests( XyceCInterfaceUnitTests TEST_PREFIX XyceCInterfaceUnit: PROPERTIES "LABELS;nightly;LABELS;required:mixedsignal" DISCOVERY_TIMEOUT 30)
+     gtest_discover_tests( XyceCInterfaceUnitTests TEST_PREFIX XyceCInterfaceUnit: PROPERTIES LABELS "nightly;required:mixedsignal" DISCOVERY_TIMEOUT 30)
 endif()
 
 if(BUILD_SHARED_LIBS AND CMAKE_HOST_WIN32 )
@@ -33,7 +33,6 @@ configure_file(SetupPythonEnv.m.cmake SetupPythonEnv.m @ONLY )
 install( FILES N_CIR_XyceCInterface.h DESTINATION include OPTIONAL)
 install( FILES ${CMAKE_CURRENT_BINARY_DIR}/xyce_interface.py DESTINATION share OPTIONAL)
 install( FILES ${CMAKE_CURRENT_BINARY_DIR}/SetupPythonEnv.m DESTINATION share OPTIONAL)
-install( FILES XyceRest.py DESTINATION share OPTIONAL)
 install( DIRECTORY PythonExamples DESTINATION share OPTIONAL)
 install( DIRECTORY MatlabExamples DESTINATION share OPTIONAL)
 
